@@ -75,6 +75,4 @@ Input Validation: Ensures only numeric values are processed to prevent app crash
 
 Developer: [Grasiano Dery]
 
-API Key: 852bee8379b697f07ae61374.
-
 License: MIT
