@@ -2,102 +2,106 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
-// Reusable Input Component defined inside to avoid import errors
-const InputBox = ({ label, amount, onAmountChange, onCurrencyChange, options, selectedCurrency, disabled }) => (
-  <div className="input-group">
-    <label className="input-label">{label}</label>
-    <div className="control-row">
-      <input
-        type="number"
-        className="amount-input"
-        value={amount}
-        onChange={(e) => onAmountChange && onAmountChange(Number(e.target.value))}
-        disabled={disabled}
-      />
-      <select
-        className="currency-select"
-        value={selectedCurrency}
-        onChange={(e) => onCurrencyChange && onCurrencyChange(e.target.value)}
-      >
-        {options.map((curr) => (
-          <option key={curr} value={curr}>{curr.toUpperCase()}</option>
-        ))}
-      </select>
-    </div>
-  </div>
-);
-
-function App() {
+export default function App() {
   const [amount, setAmount] = useState(1);
   const [from, setFrom] = useState('USD');
   const [to, setTo] = useState('EUR');
-  const [convertedAmount, setConvertedAmount] = useState(0);
+  const [result, setResult] = useState(0);
   const [options, setOptions] = useState([]);
-  const [rates, setRates] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [favorites, setFavorites] = useState(
+    JSON.parse(localStorage.getItem('fav_currencies')) || []
+  );
 
   const API_KEY = "852bee8379b697f07ae61374";
 
-  // Initial fetch for all currency codes
+  // Initial Fetch
   useEffect(() => {
     axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/latest/USD`)
-      .then(res => {
-        setOptions(Object.keys(res.data.conversion_rates));
-      })
-      .catch(err => alert("Error fetching initial data"));
+      .then(res => setOptions(Object.keys(res.data.conversion_rates)))
+      .catch(() => alert("Error connecting to API"));
   }, []);
 
-  // Conversion logic
-  const handleConvert = () => {
-    axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${from}`)
-      .then(res => {
-        const rate = res.data.conversion_rates[to];
-        setConvertedAmount((amount * rate).toFixed(2));
-      })
-      .catch(err => alert("Conversion failed"));
+  const handleConvert = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`https://v6.exchangerate-api.com/v6/${API_KEY}/latest/${from}`);
+      const rate = res.data.conversion_rates[to];
+      setResult((amount * rate).toFixed(2));
+    } catch (err) {
+      alert("Conversion failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const swap = () => {
-    setFrom(to);
-    setTo(from);
-    setAmount(convertedAmount);
-    setConvertedAmount(amount);
+  const saveFavorite = () => {
+    const pair = `${from}/${to}`;
+    if (!favorites.includes(pair)) {
+      const newFavs = [...favorites, pair];
+      setFavorites(newFavs);
+      localStorage.setItem('fav_currencies', JSON.stringify(newFavs));
+    }
   };
 
   return (
-    <div className="app-wrapper">
-      <div className="converter-card">
-        <h1 className="title">Currency Converter</h1>
+    <div className="dashboard">
+      <div className="card">
+        <h2>Currency Tracker</h2>
         
-        <InputBox 
-          label="From"
-          amount={amount}
-          options={options}
-          selectedCurrency={from}
-          onAmountChange={(val) => setAmount(val)}
-          onCurrencyChange={(val) => setFrom(val)}
-        />
-
-        <div className="swap-container">
-          <button className="swap-btn" onClick={swap}>↑↓ SWAP</button>
+        {/* FROM SECTION */}
+        <div className="input-box">
+          <label>From</label>
+          <div className="row">
+            <input 
+              type="number" 
+              value={amount} 
+              onChange={(e) => setAmount(e.target.value)} 
+            />
+            <select value={from} onChange={(e) => setFrom(e.target.value)}>
+              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
         </div>
 
-        <InputBox 
-          label="To"
-          amount={convertedAmount}
-          options={options}
-          selectedCurrency={to}
-          onCurrencyChange={(val) => setTo(val)}
-          disabled={true}
-        />
+        {/* TO SECTION */}
+        <div className="input-box">
+          <label>To (Result)</label>
+          <div className="row">
+            <input type="number" value={result} readOnly />
+            <select value={to} onChange={(e) => setTo(e.target.value)}>
+              {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+            </select>
+          </div>
+        </div>
 
-        <button className="convert-btn" onClick={handleConvert}>
-          Convert {from} to {to}
+        <button className="convert-btn" onClick={handleConvert} disabled={loading}>
+          {loading ? <div className="spinner"></div> : `Convert ${from} to ${to}`}
         </button>
 
-        <p className="info">Real-time rates powered by ExchangeRate-API</p>
+        <button 
+          onClick={saveFavorite}
+          style={{marginTop: '10px', background: 'transparent', border: '1px solid gray', color: 'white', width: '100%', padding: '10px', borderRadius: '12px', cursor: 'pointer'}}
+        >
+          ⭐ Save Pair to Favorites
+        </button>
+
+        {/* FAVORITES LIST */}
+        <div className="favorites">
+          <p>Your Favorite Pairs:</p>
+          {favorites.map(pair => (
+            <span key={pair} className="fav-item" onClick={() => {
+              const [f, t] = pair.split('/');
+              setFrom(f); setTo(t);
+            }}>
+              {pair}
+            </span>
+          ))}
+          {favorites.length > 0 && 
+            <button onClick={() => {setFavorites([]); localStorage.clear();}} style={{color: 'red', background: 'none', border: 'none', cursor: 'pointer'}}>Clear All</button>
+          }
+        </div>
       </div>
     </div>
   );
 }
-
-export default App;
